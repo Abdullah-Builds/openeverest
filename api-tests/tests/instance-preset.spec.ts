@@ -45,7 +45,7 @@ test.describe('Instance Preset tests', () => {
     expect(presetList.items).toBeTruthy();
     const foundPreset = presetList.items.find((p: any) => p.metadata.name === PRESET_NAME);
     expect(foundPreset).toBeTruthy();
-    expect(foundPreset.spec.provider).toBe(PROVIDER_NAME);
+    expect(foundPreset.spec.providerRef.name).toBe(PROVIDER_NAME);
     expect(foundPreset.spec.version).toBe('1.0.0');
   });
 
@@ -58,11 +58,11 @@ test.describe('Instance Preset tests', () => {
     const preset = await response.json();
     
     expect(preset.metadata.name).toBe(PRESET_NAME);
-    expect(preset.spec.provider).toBe(PROVIDER_NAME);
+    expect(preset.spec.providerRef.name).toBe(PROVIDER_NAME);
     expect(preset.spec.version).toBe('1.0.0');
     expect(preset.spec).toBeTruthy();
-    // Verify namespace scope secret is empty
-    expect(preset.spec.components.engine.config.secretRef.name).toBeUndefined();
+    // Inline component config is carried verbatim on the preset.
+    expect(preset.spec.components.engine.config).toBe('key = value\n');
   });
   
   test('create instance using preset', async ({request}) => {
@@ -75,8 +75,8 @@ test.describe('Instance Preset tests', () => {
       await checkError(resolveResponse);
       const preset = await resolveResponse.json();
 
-      // Verify namespace scope secret has default filled fields
-      expect(preset.spec.components.engine.config.secretRef.name).toBe("test-secret");
+      // Inline config is untouched by resolution; storage defaults are filled.
+      expect(preset.spec.components.engine.config).toBe('key = value\n');
       expect(preset.spec.components.engine.storage.storageClass).toBe("local-path");
 
       // Copy the preset spec and add annotation
@@ -111,7 +111,7 @@ test.describe('Instance Preset tests', () => {
         const instance = await response.json();
         
         expect(instance.metadata.name).toBe(INSTANCE_NAME);
-        expect(instance.spec.components.engine.config.secretRef.name).toBe("test-secret");
+        expect(instance.spec.components.engine.config).toBe('key = value\n');
       }).toPass({
         intervals: [2000],
         timeout: TIMEOUTS.OneMinute,

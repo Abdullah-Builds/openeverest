@@ -91,9 +91,6 @@ func TestApplyNamespaceDefaults_New(t *testing.T) {
 		log:           zap.NewNop().Sugar(),
 	}
 
-	emptySecretRef := &corev1alpha1.Config{SecretRef: corev1.LocalObjectReference{Name: ""}}
-	resolvedSecretRef := &corev1alpha1.Config{SecretRef: corev1.LocalObjectReference{Name: "default-secret"}}
-
 	tests := []struct {
 		name     string
 		input    *corev1alpha1.InstancePreset
@@ -110,17 +107,12 @@ func TestApplyNamespaceDefaults_New(t *testing.T) {
 			expected: newTestPreset(map[string]corev1alpha1.ComponentSpec{}),
 		},
 		{
-			name:     "resolves secretRef",
-			input:    newTestPreset(map[string]corev1alpha1.ComponentSpec{"pmm": {Config: emptySecretRef}}),
-			expected: newTestPreset(map[string]corev1alpha1.ComponentSpec{"pmm": {Config: resolvedSecretRef}}),
-		},
-		{
-			name: "other component does not resolve secretRef",
+			name: "inline config passes through unchanged",
 			input: newTestPreset(map[string]corev1alpha1.ComponentSpec{
-				"other": {Config: emptySecretRef},
+				"pmm": {Config: "key = value"},
 			}),
 			expected: newTestPreset(map[string]corev1alpha1.ComponentSpec{
-				"other": {Config: emptySecretRef},
+				"pmm": {Config: "key = value"},
 			}),
 		},
 		{

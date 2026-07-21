@@ -24,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	common "github.com/openeverest/openeverest/v2/api/common/v1alpha1"
 	corev1alpha1 "github.com/openeverest/openeverest/v2/api/core/v1alpha1"
 	monitoringv1alpha1 "github.com/openeverest/openeverest/v2/api/monitoring/v1alpha1"
 )
@@ -43,7 +44,7 @@ func (h *k8sHandler) ListInstancePresets(ctx context.Context, cluster string, pr
 	if provider != "" {
 		filtered := make([]corev1alpha1.InstancePreset, 0)
 		for _, preset := range list.Items {
-			if preset.Spec.Provider == provider {
+			if preset.Spec.ProviderRef.Name == provider {
 				filtered = append(filtered, preset)
 			}
 		}
@@ -84,14 +85,6 @@ func (h *k8sHandler) resolveNamespaceDefaults(ctx context.Context, preset *corev
 	for componentName, component := range preset.Spec.Components {
 		var err error
 
-		// Resolve Config fields
-		if component.Config != nil {
-			component, err = h.resolveConfigFields(ctx, component, componentName, namespace)
-			if err != nil {
-				return nil, fmt.Errorf("failed to resolve component %s: %w", componentName, err)
-			}
-		}
-
 		// Resolve customSpec fields
 		if component.CustomSpec != nil && len(component.CustomSpec.Raw) > 0 {
 			component, err = h.resolveCustomSpecFields(ctx, component, componentName, namespace)
@@ -112,24 +105,6 @@ func (h *k8sHandler) resolveNamespaceDefaults(ctx context.Context, preset *corev
 	}
 
 	return preset, nil
-}
-
-// resolveConfigFields handles structured Config.SecretRef.Name.
-// TODO: support Config.ConfigMapRef.Name.
-func (h *k8sHandler) resolveConfigFields(ctx context.Context, component corev1alpha1.ComponentSpec, componentName, namespace string) (corev1alpha1.ComponentSpec, error) {
-	if component.Config == nil {
-		return component, nil
-	}
-
-	if isEmptyValue(component.Config.SecretRef) {
-		defaultSecretName, err := h.findDefaultResource(ctx, namespace, "Secret", componentName)
-		if err != nil {
-			return component, err
-		}
-		component.Config.SecretRef.Name = defaultSecretName
-	}
-
-	return component, nil
 }
 
 // resolveStorageFields handles structured Storage.StorageClass.
@@ -228,7 +203,7 @@ func isEmptyValue(value any) bool {
 		return v == ""
 	case *string:
 		return v == nil || *v == ""
-	case corev1.LocalObjectReference:
+	case common.ObjectRef:
 		return v.Name == ""
 	case map[string]any:
 		// Empty object like {} or {"name": ""}

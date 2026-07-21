@@ -23,14 +23,17 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	backupv1alpha1 "github.com/openeverest/openeverest/v2/api/backup/v1alpha1"
+	common "github.com/openeverest/openeverest/v2/api/common/v1alpha1"
 )
 
 // InstanceSpec defines the desired state of Instance
 // +kubebuilder:validation:XValidation:rule="!has(self.dataSource) || (has(self.backup) && self.backup.enabled)",message="spec.dataSource requires spec.backup.enabled=true with at least one storage so the provider can read the source backup"
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.dataSource) || (has(self.dataSource) && self.dataSource == oldSelf.dataSource)",message="spec.dataSource is immutable once set"
 type InstanceSpec struct {
-	// Provider is the name of the database provider (e.g., "psmdb", "postgresql").
-	Provider string `json:"provider,omitempty"`
+	// ProviderRef references the cluster-scoped Provider that manages this
+	// Instance (e.g., "percona-server-mongodb", "postgresql").
+	// +kubebuilder:validation:Required
+	ProviderRef common.ObjectRef `json:"providerRef"`
 
 	// Version selects a provider-defined version bundle, resolving compatible
 	// versions for all components automatically. Per-component versions set
@@ -66,7 +69,7 @@ type InstanceSpec struct {
 	// DeletionPolicy controls what happens to Backup and Restore CRs that
 	// reference this Instance when the Instance is deleted.
 	// Cascade (default) instructs the runtime to delete every Backup and
-	// Restore in the Instance's namespace whose .spec.instanceName matches
+	// Restore in the Instance's namespace whose .spec.instanceRef matches
 	// this Instance before tearing down the engine. Each Backup's own
 	// .spec.deletionPolicy then independently controls whether its
 	// underlying data in the BackupStorage is purged or retained.
@@ -109,7 +112,7 @@ type InstanceDeletionPolicy string
 const (
 	// InstanceDeletionPolicyCascade instructs the runtime to delete every
 	// Backup and Restore in the Instance's namespace whose
-	// .spec.instanceName matches this Instance before tearing down the
+	// .spec.instanceRef matches this Instance before tearing down the
 	// engine. Each Backup's own .spec.deletionPolicy independently
 	// controls whether its underlying data in the BackupStorage is purged
 	// or retained. This is the default and matches the historical
@@ -132,43 +135,36 @@ const (
 // global identifiers and they appear on mirrored Backup CRs as
 // .spec.scheduleName.
 //
+// +kubebuilder:validation:XValidation:rule="!has(self.storages) || self.storages.all(s1, self.storages.filter(s2, s2.storageRef.name == s1.storageRef.name).size() == 1)",message="storageRef names must be unique across all storages"
 // +kubebuilder:validation:XValidation:rule="!has(self.storages) || self.storages.all(s1, !has(s1.schedules) || s1.schedules.all(sch1, self.storages.filter(s2, has(s2.schedules) && s2.schedules.exists(sch2, sch2.name == sch1.name)).size() <= 1 && s1.schedules.filter(sch2, sch2.name == sch1.name).size() == 1))",message="schedule names must be unique across all storages"
 type InstanceBackupSpec struct {
 	// Enabled toggles the backup feature for this Instance. When false the
 	// runtime skips ConfigureBackup() and the rest of this struct is ignored.
 	Enabled bool `json:"enabled"`
-	// ClassRef references the BackupClass that the provider should use to
-	// configure the engine. The class must have ExecutionMode=ProviderManaged
-	// and list the Instance's provider in its SupportedProviders.
+	// ClassRef references the cluster-scoped BackupClass that the provider
+	// should use to configure the engine. The class must have
+	// ExecutionMode=ProviderManaged and list the Instance's provider in its
+	// SupportedProviders.
 	// +kubebuilder:validation:Required
-	ClassRef BackupClassReference `json:"classRef"`
-	// Storages registers BackupStorages on the engine. Each entry maps a
-	// logical name (visible to the engine and reused by Backup CRs via
-	// .spec.storageName) to a BackupStorage resource. Schedules and PITR are
-	// configured per storage via the nested .schedules and .pitr fields.
+	ClassRef common.ObjectRef `json:"classRef"`
+	// Storages registers BackupStorages on the engine. Each entry references
+	// a BackupStorage resource in the same namespace; the BackupStorage name
+	// is also the storage key the engine uses and the value that Backup CRs
+	// target via .spec.storageRef. Schedules and PITR are configured per
+	// storage via the nested .schedules and .pitr fields.
 	// +optional
 	// +kubebuilder:validation:MaxItems=10
 	Storages []InstanceBackupStorage `json:"storages,omitempty"`
 }
 
-// BackupClassReference references a BackupClass by name.
-type BackupClassReference struct {
-	// Name is the BackupClass name. BackupClasses are cluster-scoped.
-	// +kubebuilder:validation:Required
-	Name string `json:"name"`
-}
-
 // InstanceBackupStorage registers a BackupStorage on the Instance and
 // carries the backup policy (schedules, PITR) that targets it.
 type InstanceBackupStorage struct {
-	// Name is the logical name the engine uses for this storage. It is also
-	// the value that Backup CRs target via .spec.storageName.
+	// StorageRef references a BackupStorage in the same namespace. The
+	// BackupStorage name doubles as the storage key on the engine, so it
+	// must be unique across all entries.
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MaxLength=63
-	Name string `json:"name"`
-	// StorageRef references a BackupStorage in the same namespace.
-	// +kubebuilder:validation:Required
-	StorageRef corev1.LocalObjectReference `json:"storageRef"`
+	StorageRef common.ObjectRef `json:"storageRef"`
 	// Schedules registers recurring backup tasks that write to this storage.
 	// Schedules produce Backup CRs (via the provider's mirroring loop) using
 	// the operator-native scheduler — the runtime never spawns CronJobs for
@@ -273,9 +269,14 @@ type ComponentSpec struct {
 	// Resources requirements for this component.
 	// +optional
 	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
-	// Config specifies the component specific configuration.
+	// Config is the inline content of the component's configuration file
+	// (e.g. a my.cnf or mongod.conf fragment). The dialect is engine-specific
+	// and interpreted by the provider. Note that the content is stored
+	// unencrypted in the cluster datastore and is readable by anyone who can
+	// read the Instance; credentials do not belong here.
 	// +optional
-	Config *Config `json:"config,omitempty"`
+	// +kubebuilder:validation:MaxLength=65536
+	Config string `json:"config,omitempty"`
 	// Replicas specifies the number of replicas for this component.
 	// +optional
 	Replicas *int32 `json:"replicas,omitempty"`
@@ -322,12 +323,6 @@ type LoadBalancerService struct {
 type Storage struct {
 	Size         resource.Quantity `json:"size,omitempty"`
 	StorageClass *string           `json:"storageClass,omitempty"`
-}
-
-type Config struct {
-	SecretRef    corev1.LocalObjectReference `json:"secretRef,omitempty"`
-	ConfigMapRef corev1.LocalObjectReference `json:"configMapRef,omitempty"`
-	Key          string                      `json:"key,omitempty"`
 }
 
 // GetComponentsOfType returns all components that match the given type.
@@ -421,7 +416,7 @@ type InstanceStatus struct {
 	//   - "uri"      - Full connection URI including credentials
 	//
 	// +optional
-	ConnectionSecretRef corev1.LocalObjectReference `json:"connectionSecretRef,omitempty"`
+	ConnectionSecretRef common.SecretRef `json:"connectionSecretRef,omitempty"`
 	// Components is the status of the components in the database cluster.
 	Components []ComponentStatus `json:"components,omitempty"`
 
@@ -452,7 +447,8 @@ type InstanceBackupStatus struct {
 // InstanceBackupStorageStatus reports the observed backup state of a single
 // entry in spec.backup.storages.
 type InstanceBackupStorageStatus struct {
-	// Name is the logical storage name (matches spec.backup.storages[].name).
+	// Name is the BackupStorage name (matches
+	// spec.backup.storages[].storageRef.name).
 	// +kubebuilder:validation:Required
 	Name string `json:"name"`
 	// LatestRestorableTime is the most recent point in time to which the
@@ -657,10 +653,12 @@ const (
 )
 
 type ComponentStatus struct {
-	Pods  []corev1.LocalObjectReference `json:"pods,omitempty"`
-	Total *int32                        `json:"total,omitempty"`
-	Ready *int32                        `json:"ready,omitempty"`
-	State string                        `json:"state,omitempty"`
+	// PodRefs references the Pods backing this component.
+	// +optional
+	PodRefs []common.ObjectRef `json:"podRefs,omitempty"`
+	Total   *int32             `json:"total,omitempty"`
+	Ready   *int32             `json:"ready,omitempty"`
+	State   string             `json:"state,omitempty"`
 }
 
 // +kubebuilder:object:root=true
