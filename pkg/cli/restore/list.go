@@ -24,15 +24,16 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"sort"
 	"time"
 
 	"github.com/rodaine/table"
 	"go.uber.org/zap"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/duration"
 
 	"github.com/openeverest/openeverest/v2/client"
 	authcli "github.com/openeverest/openeverest/v2/pkg/cli/auth"
+	"github.com/openeverest/openeverest/v2/pkg/cli/clientmeta"
 )
 
 // Config holds the shared configuration for restore CLI runners.
@@ -125,11 +126,17 @@ func printRestoreTable(w io.Writer, restores []client.Restore) {
 }
 
 func restoreName(r *client.Restore) string {
-	return metadataStringField(r, "name")
+	if r.Metadata == nil || r.Metadata.Name == "" {
+		return "-"
+	}
+	return r.Metadata.Name
 }
 
 func restoreNamespace(r *client.Restore) string {
-	return metadataStringField(r, "namespace")
+	if r.Metadata == nil || r.Metadata.Namespace == "" {
+		return "-"
+	}
+	return r.Metadata.Namespace
 }
 
 func restoreInstance(r *client.Restore) string {
@@ -164,45 +171,14 @@ func restoreAge(r *client.Restore) string {
 // sortRestoresByRecency orders restores newest-first by creation time, falling
 // back to name for stability when timestamps tie or are unavailable.
 func sortRestoresByRecency(restores []client.Restore) {
-	sort.Slice(restores, func(i, j int) bool {
-		ti, iok := restoreCreationTime(&restores[i])
-		tj, jok := restoreCreationTime(&restores[j])
-		switch {
-		case iok && jok && !ti.Equal(tj):
-			return ti.After(tj)
-		case iok != jok:
-			return iok
-		default:
-			return restoreName(&restores[i]) < restoreName(&restores[j])
-		}
-	})
+	clientmeta.SortByRecency(restores, func(r *client.Restore) *metav1.ObjectMeta { return r.Metadata })
 }
 
 // restoreCreationTime returns the restore's creation time and whether it could
-// be determined. Restores without a parseable timestamp sort last.
+// be determined. Restores without a timestamp sort last.
 func restoreCreationTime(r *client.Restore) (time.Time, bool) {
-	ts := metadataStringField(r, "creationTimestamp")
-	if ts == "-" {
+	if r.Metadata == nil || r.Metadata.CreationTimestamp.IsZero() {
 		return time.Time{}, false
 	}
-	created, err := time.Parse(time.RFC3339, ts)
-	if err != nil {
-		return time.Time{}, false
-	}
-	return created, true
-}
-
-func metadataStringField(r *client.Restore, key string) string {
-	if r.Metadata == nil {
-		return "-"
-	}
-	v, ok := (*r.Metadata)[key]
-	if !ok {
-		return "-"
-	}
-	s, ok := v.(string)
-	if !ok || s == "" {
-		return "-"
-	}
-	return s
+	return r.Metadata.CreationTimestamp.Time, true
 }

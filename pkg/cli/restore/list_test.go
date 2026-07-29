@@ -197,40 +197,6 @@ func TestRestoreList_JSONOutput(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func restoreWithAge(name string, age time.Duration) client.Restore {
-	var r client.Restore
-	r.Metadata = &map[string]any{
-		"name":              name,
-		"creationTimestamp": time.Now().Add(-age).UTC().Format(time.RFC3339),
-	}
-	return r
-}
-
-func restoreWithoutTimestamp(name string) client.Restore {
-	var r client.Restore
-	r.Metadata = &map[string]any{"name": name}
-	return r
-}
-
-func TestSortRestoresByRecency(t *testing.T) {
-	t.Parallel()
-
-	restores := []client.Restore{
-		restoreWithAge("oldest", 48*time.Hour),
-		restoreWithAge("newest", time.Hour),
-		restoreWithoutTimestamp("no-timestamp"),
-		restoreWithAge("middle", 24*time.Hour),
-	}
-
-	sortRestoresByRecency(restores)
-
-	names := make([]string, len(restores))
-	for i, r := range restores {
-		names[i] = restoreName(&r)
-	}
-	assert.Equal(t, []string{"newest", "middle", "oldest", "no-timestamp"}, names)
-}
-
 func TestRestoreBackup_NilDataSource(t *testing.T) {
 	t.Parallel()
 
