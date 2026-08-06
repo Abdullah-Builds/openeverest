@@ -209,6 +209,12 @@ const (
 	FlagBackupStorageCredentialsSecret = "credentials-secret"
 	// FlagBackupStorageAccessKeyID is the access key ID (plain flag; the secret access key is never a flag).
 	FlagBackupStorageAccessKeyID = "access-key-id"
+	// FlagBackupStorageWait blocks delete until the backup storage is fully removed.
+	FlagBackupStorageWait = "wait"
+	// FlagBackupStorageTimeout bounds --wait; only valid together with --wait.
+	FlagBackupStorageTimeout = "timeout"
+	// FlagBackupStorageIgnoreNotFound treats an already-deleted backup storage as success.
+	FlagBackupStorageIgnoreNotFound = "ignore-not-found"
 
 	// `backup-class` flags.
 
