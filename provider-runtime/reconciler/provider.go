@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -57,6 +58,7 @@ type ProviderReconciler struct {
 	manager      ctrl.Manager
 	serverConfig *server.ServerConfig
 	server       *server.Server
+	breaker      maintenanceBreaker
 	client.Client
 }
 
@@ -422,6 +424,11 @@ func (r *ProviderReconciler) Reconcile(ctx context.Context, req reconcile.Reques
 		return reconcile.Result{}, err
 	}
 	syncCtx := controller.NewContext(ctx, r.Client, resolvedIn, r.provider.Name())
+	syncCtx.BlockMaintenance(r.breaker.blockedTokens(req.NamespacedName, approvedMaintenanceValue(in))...)
+
+	// Passive warning for owners: flag effective component versions the
+	// installed catalog marks as deprecated, before any upgrade is attempted.
+	r.setDeprecationCondition(ctx, in)
 
 	// Run sync
 	logger.Info("Running sync")
@@ -450,8 +457,10 @@ func (r *ProviderReconciler) Reconcile(ctx context.Context, req reconcile.Reques
 			return reconcile.Result{}, nil
 		}
 		logger.Error(err, "Sync failed")
+		r.breaker.recordFailure(req.NamespacedName, approvedMaintenanceValue(in), syncCtx.GetApprovedMaintenance())
 		return reconcile.Result{}, err
 	}
+	r.breaker.reset(req.NamespacedName)
 	// Clear any stale BackupConfigured=False condition left from a previous failed Sync.
 	if _, ok := r.provider.(controller.BackupProvider); ok {
 		setCondition(in, v1alpha1.ConditionBackupConfigured, metav1.ConditionTrue,
@@ -470,6 +479,11 @@ func (r *ProviderReconciler) Reconcile(ctx context.Context, req reconcile.Reques
 		setCondition(in, v1alpha1.ConditionDataSourceReady, condStatus,
 			ds.Reason, ds.Message, metav1.Now())
 	}
+
+	// Flush the actions Context.RequestMaintenance held during Sync. The
+	// pending list is rebuilt from scratch every pass so it can never go
+	// stale, while the approval stays durable in spec.
+	flushPendingMaintenance(syncCtx, in)
 
 	// Compute and update status
 	logger.Info("Computing status")
@@ -765,6 +779,80 @@ func setCondition(in *v1alpha1.Instance, condType string, status metav1.Conditio
 		Message:            message,
 		ObservedGeneration: in.Generation,
 	})
+}
+
+// setDeprecationCondition maintains the read-only ComponentVersionDeprecated
+// condition: True while any of the Instance's effective component versions is
+// flagged as deprecated in the installed Provider catalog. It reuses the
+// upgrade preflight's catalog check, so this passive warning and the
+// pre-upgrade hook's verdict never disagree. The condition is informational:
+// lookup failures are skipped and never fail the reconcile, and it is only
+// flipped to False (never removed) once a deprecation it reported clears.
+func (r *ProviderReconciler) setDeprecationCondition(ctx context.Context, in *v1alpha1.Instance) {
+	installed := &v1alpha1.Provider{}
+	if err := r.Get(ctx, client.ObjectKey{Name: in.Spec.ProviderRef.Name}, installed); err != nil {
+		return
+	}
+
+	var deprecations []string
+	for _, issue := range controller.PreflightUpgrade(&installed.Spec, []v1alpha1.Instance{*in}) {
+		if issue.Reason == controller.UpgradeReasonVersionDeprecated {
+			deprecations = append(deprecations, issue.Message)
+		}
+	}
+
+	if len(deprecations) > 0 {
+		setCondition(in, v1alpha1.ConditionComponentVersionDeprecated, metav1.ConditionTrue,
+			v1alpha1.ReasonScheduledForRemoval, strings.Join(deprecations, "; "), metav1.Now())
+		return
+	}
+	for _, c := range in.Status.Conditions {
+		if c.Type == v1alpha1.ConditionComponentVersionDeprecated {
+			setCondition(in, v1alpha1.ConditionComponentVersionDeprecated, metav1.ConditionFalse,
+				v1alpha1.ReasonVersionsSupported,
+				"All component versions are supported by the installed provider", metav1.Now())
+			return
+		}
+	}
+}
+
+// flushPendingMaintenance writes the actions held by RequestMaintenance to
+// status.pendingMaintenance and maintains the MaintenancePending condition:
+// True while anything is held, flipped to False (never removed) once the
+// last held action clears. When a hold is due to exhausted retries the
+// reason says so, surfacing the breaker state.
+func flushPendingMaintenance(syncCtx *controller.Context, in *v1alpha1.Instance) {
+	pending := syncCtx.GetPendingMaintenance()
+	in.Status.PendingMaintenance = pending
+
+	if len(pending) > 0 {
+		reason := v1alpha1.ReasonAwaitingApproval
+		message := fmt.Sprintf("%d action(s) require approval to proceed", len(pending))
+		if syncCtx.MaintenanceBreakerHeld() {
+			reason = v1alpha1.ReasonRetriesExhausted
+			message = "an approved action kept failing and is no longer retried; clear and re-set spec.maintenance.approved to retry"
+		}
+		setCondition(in, v1alpha1.ConditionMaintenancePending, metav1.ConditionTrue,
+			reason, message, metav1.Now())
+		return
+	}
+	for _, c := range in.Status.Conditions {
+		if c.Type == v1alpha1.ConditionMaintenancePending {
+			setCondition(in, v1alpha1.ConditionMaintenancePending, metav1.ConditionFalse,
+				v1alpha1.ReasonNoActionsPending,
+				"No disruptive actions are held", metav1.Now())
+			return
+		}
+	}
+}
+
+// approvedMaintenanceValue returns spec.maintenance.approved, tolerating an
+// unset maintenance block.
+func approvedMaintenanceValue(in *v1alpha1.Instance) string {
+	if in.Spec.Maintenance == nil {
+		return ""
+	}
+	return in.Spec.Maintenance.Approved
 }
 
 // prepareInstance fetches the Provider and returns the Instance the provider

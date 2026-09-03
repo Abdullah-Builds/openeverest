@@ -435,7 +435,8 @@ export interface paths {
         get: operations["getInstance"];
         /**
          * Update instance
-         * @description This API updates the database instance specified by the `instance` name in the specified `namespace` and `cluster`.
+         * @description This API updates the database instance specified by the `instance` name in the specified `namespace` and `cluster`, replacing the entire resource with the new one.
+         *     To change only specific fields, use PATCH instead.
          */
         put: operations["updateInstance"];
         post?: never;
@@ -446,7 +447,13 @@ export interface paths {
         delete: operations["deleteInstance"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Patch instance
+         * @description This API applies Merge Patch to the database instance specified by the `instance` name in the specified `namespace` and `cluster`.
+         *     Members absent from the patch keep their current value, and a member set to `null` is removed. A path that does not exist on the Instance is
+         *     rejected rather than ignored. Include `metadata.resourceVersion` to make the patch conditional, which fails with 409 if the instance has changed.
+         */
+        patch: operations["patchInstance"];
         trace?: never;
     };
     "/clusters/{cluster}/namespaces/{namespace}/instances/{instance}/connection": {
@@ -2507,6 +2514,32 @@ export interface components {
                  */
                 deletionPolicy: "Cascade" | "Orphan";
                 /**
+                 * @description Maintenance governs how disruptive actions raised against this
+                 *     Instance (e.g. the convergence step after a provider upgrade) are
+                 *     authorized. It does NOT govern the deliberate engine-version upgrade
+                 *     flow (spec.version / spec.components[].version).
+                 */
+                maintenance?: {
+                    /**
+                     * @description Approved is a one-time authorization for an action above the standing
+                     *     tolerance: set it to the exact approvalToken of the held action from
+                     *     status.pendingMaintenance. It is matched literally, authorizes only
+                     *     that occurrence, and re-arms naturally — a later action carries a
+                     *     different token, so a stale value never authorizes it. It is NOT a
+                     *     provider version.
+                     */
+                    approved?: string;
+                    /**
+                     * @description AutoApproveUpTo is the standing disruption tolerance: any action at or
+                     *     below this impact applies automatically, anything above it is held on
+                     *     status.pendingMaintenance. It is cause-agnostic — the tolerance applies
+                     *     whether the action was raised by a provider upgrade or anything else.
+                     * @default NonDisruptive
+                     * @enum {string}
+                     */
+                    autoApproveUpTo: "NonDisruptive" | "RollingRestart" | "Downtime";
+                };
+                /**
                  * @description Parameters contains structured parameters that apply to the Instance
                  *     as a whole, complementing the topology- and component-scoped
                  *     parameters. The payload is validated against the referenced Provider's
@@ -3959,6 +3992,32 @@ export interface components {
                  */
                 deletionPolicy: "Cascade" | "Orphan";
                 /**
+                 * @description Maintenance governs how disruptive actions raised against this
+                 *     Instance (e.g. the convergence step after a provider upgrade) are
+                 *     authorized. It does NOT govern the deliberate engine-version upgrade
+                 *     flow (spec.version / spec.components[].version).
+                 */
+                maintenance?: {
+                    /**
+                     * @description Approved is a one-time authorization for an action above the standing
+                     *     tolerance: set it to the exact approvalToken of the held action from
+                     *     status.pendingMaintenance. It is matched literally, authorizes only
+                     *     that occurrence, and re-arms naturally — a later action carries a
+                     *     different token, so a stale value never authorizes it. It is NOT a
+                     *     provider version.
+                     */
+                    approved?: string;
+                    /**
+                     * @description AutoApproveUpTo is the standing disruption tolerance: any action at or
+                     *     below this impact applies automatically, anything above it is held on
+                     *     status.pendingMaintenance. It is cause-agnostic — the tolerance applies
+                     *     whether the action was raised by a provider upgrade or anything else.
+                     * @default NonDisruptive
+                     * @enum {string}
+                     */
+                    autoApproveUpTo: "NonDisruptive" | "RollingRestart" | "Downtime";
+                };
+                /**
                  * @description Parameters contains structured parameters that apply to the Instance
                  *     as a whole, complementing the topology- and component-scoped
                  *     parameters. The payload is validated against the referenced Provider's
@@ -4111,6 +4170,30 @@ export interface components {
                 };
                 /** @description Message is a custom user-facing message describing the current state of the instance. */
                 message?: string;
+                /**
+                 * @description PendingMaintenance lists the disruptive actions currently held awaiting
+                 *     approval. It is recomputed on every reconcile from the actions the
+                 *     provider currently requests above the Instance's tolerance, so it can
+                 *     never go stale: an action the provider stops requesting disappears.
+                 */
+                pendingMaintenance?: {
+                    /**
+                     * @description ApprovalToken is the occurrence-unique, human-readable token the
+                     *     provider assigned to this held action. Copy it verbatim into
+                     *     spec.maintenance.approved to authorize this specific action.
+                     */
+                    approvalToken?: string;
+                    /**
+                     * @description Description is a human-readable summary of the action and its
+                     *     observable impact. It never exposes operator internals.
+                     */
+                    description: string;
+                    /**
+                     * @description Severity is the action's observable database impact.
+                     * @enum {string}
+                     */
+                    severity: "NonDisruptive" | "RollingRestart" | "Downtime";
+                }[];
                 /**
                  * @description Phase of the database cluster.
                  * @enum {string}
@@ -4621,21 +4704,21 @@ export interface components {
                          */
                         clusterPermissions?: {
                             /**
-                             * @description APIGroups is the name of the APIGroup that contains the resources.  If multiple API groups are specified, any action requested against one of
+                             * @description apiGroups is the name of the APIGroup that contains the resources.  If multiple API groups are specified, any action requested against one of
                              *     the enumerated resources in any API group will be allowed. "" represents the core API group and "*" represents all API groups.
                              */
                             apiGroups?: string[];
                             /**
-                             * @description NonResourceURLs is a set of partial urls that a user should have access to.  *s are allowed, but only as the full, final step in the path
+                             * @description nonResourceURLs is a set of partial urls that a user should have access to.  *s are allowed, but only as the full, final step in the path
                              *     Since non-resource URLs are not namespaced, this field is only applicable for ClusterRoles referenced from a ClusterRoleBinding.
                              *     Rules can either apply to API resources (such as "pods" or "secrets") or non-resource URL paths (such as "/api"),  but not both.
                              */
                             nonResourceURLs?: string[];
-                            /** @description ResourceNames is an optional white list of names that the rule applies to.  An empty set means that everything is allowed. */
+                            /** @description resourceNames is an optional white list of names that the rule applies to.  An empty set means that everything is allowed. */
                             resourceNames?: string[];
-                            /** @description Resources is a list of resources this rule applies to. '*' represents all resources. */
+                            /** @description resources is a list of resources this rule applies to. '*' represents all resources. */
                             resources?: string[];
-                            /** @description Verbs is a list of Verbs that apply to ALL the ResourceKinds contained in this rule. '*' represents all verbs. */
+                            /** @description verbs is a list of Verbs that apply to ALL the ResourceKinds contained in this rule. '*' represents all verbs. */
                             verbs: string[];
                         }[];
                         /** @description JobSpec is the specification of the backup or restore job. */
@@ -4651,21 +4734,21 @@ export interface components {
                          */
                         permissions?: {
                             /**
-                             * @description APIGroups is the name of the APIGroup that contains the resources.  If multiple API groups are specified, any action requested against one of
+                             * @description apiGroups is the name of the APIGroup that contains the resources.  If multiple API groups are specified, any action requested against one of
                              *     the enumerated resources in any API group will be allowed. "" represents the core API group and "*" represents all API groups.
                              */
                             apiGroups?: string[];
                             /**
-                             * @description NonResourceURLs is a set of partial urls that a user should have access to.  *s are allowed, but only as the full, final step in the path
+                             * @description nonResourceURLs is a set of partial urls that a user should have access to.  *s are allowed, but only as the full, final step in the path
                              *     Since non-resource URLs are not namespaced, this field is only applicable for ClusterRoles referenced from a ClusterRoleBinding.
                              *     Rules can either apply to API resources (such as "pods" or "secrets") or non-resource URL paths (such as "/api"),  but not both.
                              */
                             nonResourceURLs?: string[];
-                            /** @description ResourceNames is an optional white list of names that the rule applies to.  An empty set means that everything is allowed. */
+                            /** @description resourceNames is an optional white list of names that the rule applies to.  An empty set means that everything is allowed. */
                             resourceNames?: string[];
-                            /** @description Resources is a list of resources this rule applies to. '*' represents all resources. */
+                            /** @description resources is a list of resources this rule applies to. '*' represents all resources. */
                             resources?: string[];
-                            /** @description Verbs is a list of Verbs that apply to ALL the ResourceKinds contained in this rule. '*' represents all verbs. */
+                            /** @description verbs is a list of Verbs that apply to ALL the ResourceKinds contained in this rule. '*' represents all verbs. */
                             verbs: string[];
                         }[];
                     };
@@ -4690,21 +4773,21 @@ export interface components {
                          */
                         clusterPermissions?: {
                             /**
-                             * @description APIGroups is the name of the APIGroup that contains the resources.  If multiple API groups are specified, any action requested against one of
+                             * @description apiGroups is the name of the APIGroup that contains the resources.  If multiple API groups are specified, any action requested against one of
                              *     the enumerated resources in any API group will be allowed. "" represents the core API group and "*" represents all API groups.
                              */
                             apiGroups?: string[];
                             /**
-                             * @description NonResourceURLs is a set of partial urls that a user should have access to.  *s are allowed, but only as the full, final step in the path
+                             * @description nonResourceURLs is a set of partial urls that a user should have access to.  *s are allowed, but only as the full, final step in the path
                              *     Since non-resource URLs are not namespaced, this field is only applicable for ClusterRoles referenced from a ClusterRoleBinding.
                              *     Rules can either apply to API resources (such as "pods" or "secrets") or non-resource URL paths (such as "/api"),  but not both.
                              */
                             nonResourceURLs?: string[];
-                            /** @description ResourceNames is an optional white list of names that the rule applies to.  An empty set means that everything is allowed. */
+                            /** @description resourceNames is an optional white list of names that the rule applies to.  An empty set means that everything is allowed. */
                             resourceNames?: string[];
-                            /** @description Resources is a list of resources this rule applies to. '*' represents all resources. */
+                            /** @description resources is a list of resources this rule applies to. '*' represents all resources. */
                             resources?: string[];
-                            /** @description Verbs is a list of Verbs that apply to ALL the ResourceKinds contained in this rule. '*' represents all verbs. */
+                            /** @description verbs is a list of Verbs that apply to ALL the ResourceKinds contained in this rule. '*' represents all verbs. */
                             verbs: string[];
                         }[];
                         /** @description JobSpec is the specification of the backup or restore job. */
@@ -4720,21 +4803,21 @@ export interface components {
                          */
                         permissions?: {
                             /**
-                             * @description APIGroups is the name of the APIGroup that contains the resources.  If multiple API groups are specified, any action requested against one of
+                             * @description apiGroups is the name of the APIGroup that contains the resources.  If multiple API groups are specified, any action requested against one of
                              *     the enumerated resources in any API group will be allowed. "" represents the core API group and "*" represents all API groups.
                              */
                             apiGroups?: string[];
                             /**
-                             * @description NonResourceURLs is a set of partial urls that a user should have access to.  *s are allowed, but only as the full, final step in the path
+                             * @description nonResourceURLs is a set of partial urls that a user should have access to.  *s are allowed, but only as the full, final step in the path
                              *     Since non-resource URLs are not namespaced, this field is only applicable for ClusterRoles referenced from a ClusterRoleBinding.
                              *     Rules can either apply to API resources (such as "pods" or "secrets") or non-resource URL paths (such as "/api"),  but not both.
                              */
                             nonResourceURLs?: string[];
-                            /** @description ResourceNames is an optional white list of names that the rule applies to.  An empty set means that everything is allowed. */
+                            /** @description resourceNames is an optional white list of names that the rule applies to.  An empty set means that everything is allowed. */
                             resourceNames?: string[];
-                            /** @description Resources is a list of resources this rule applies to. '*' represents all resources. */
+                            /** @description resources is a list of resources this rule applies to. '*' represents all resources. */
                             resources?: string[];
-                            /** @description Verbs is a list of Verbs that apply to ALL the ResourceKinds contained in this rule. '*' represents all verbs. */
+                            /** @description verbs is a list of Verbs that apply to ALL the ResourceKinds contained in this rule. '*' represents all verbs. */
                             verbs: string[];
                         }[];
                     };
@@ -5946,6 +6029,67 @@ export interface operations {
             };
             /** @description Instance not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    patchInstance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The name of the cluster */
+                cluster: string;
+                /** @description The namespace where the instance is located */
+                namespace: string;
+                /** @description The name of the instance */
+                instance: string;
+            };
+            cookie?: never;
+        };
+        /** @description A partial Instance document. `status` and the `ownerReferences`, `finalizers`, `name` and `namespace` members of `metadata` are rejected. */
+        requestBody: {
+            content: {
+                "application/merge-patch+json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Instance patched successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Instance"];
+                };
+            };
+            /** @description Instance not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description The Content-Type is not application/merge-patch+json */
+            415: {
                 headers: {
                     [name: string]: unknown;
                 };

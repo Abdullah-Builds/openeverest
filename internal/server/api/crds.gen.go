@@ -273,6 +273,27 @@ func (e InstanceSpecDeletionPolicy) Valid() bool {
 	}
 }
 
+// Defines values for InstanceSpecMaintenanceAutoApproveUpTo.
+const (
+	InstanceSpecMaintenanceAutoApproveUpToDowntime       InstanceSpecMaintenanceAutoApproveUpTo = "Downtime"
+	InstanceSpecMaintenanceAutoApproveUpToNonDisruptive  InstanceSpecMaintenanceAutoApproveUpTo = "NonDisruptive"
+	InstanceSpecMaintenanceAutoApproveUpToRollingRestart InstanceSpecMaintenanceAutoApproveUpTo = "RollingRestart"
+)
+
+// Valid indicates whether the value is a known member of the InstanceSpecMaintenanceAutoApproveUpTo enum.
+func (e InstanceSpecMaintenanceAutoApproveUpTo) Valid() bool {
+	switch e {
+	case InstanceSpecMaintenanceAutoApproveUpToDowntime:
+		return true
+	case InstanceSpecMaintenanceAutoApproveUpToNonDisruptive:
+		return true
+	case InstanceSpecMaintenanceAutoApproveUpToRollingRestart:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for InstanceStatusBackupStoragesPitrState.
 const (
 	InstanceStatusBackupStoragesPitrStateAvailable   InstanceStatusBackupStoragesPitrState = "Available"
@@ -306,6 +327,27 @@ func (e InstanceStatusConditionsStatus) Valid() bool {
 	case InstanceStatusConditionsStatusTrue:
 		return true
 	case InstanceStatusConditionsStatusUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for InstanceStatusPendingMaintenanceSeverity.
+const (
+	InstanceStatusPendingMaintenanceSeverityDowntime       InstanceStatusPendingMaintenanceSeverity = "Downtime"
+	InstanceStatusPendingMaintenanceSeverityNonDisruptive  InstanceStatusPendingMaintenanceSeverity = "NonDisruptive"
+	InstanceStatusPendingMaintenanceSeverityRollingRestart InstanceStatusPendingMaintenanceSeverity = "RollingRestart"
+)
+
+// Valid indicates whether the value is a known member of the InstanceStatusPendingMaintenanceSeverity enum.
+func (e InstanceStatusPendingMaintenanceSeverity) Valid() bool {
+	switch e {
+	case InstanceStatusPendingMaintenanceSeverityDowntime:
+		return true
+	case InstanceStatusPendingMaintenanceSeverityNonDisruptive:
+		return true
+	case InstanceStatusPendingMaintenanceSeverityRollingRestart:
 		return true
 	default:
 		return false
@@ -405,6 +447,27 @@ func (e InstancePresetSpecDeletionPolicy) Valid() bool {
 	case InstancePresetSpecDeletionPolicyCascade:
 		return true
 	case InstancePresetSpecDeletionPolicyOrphan:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for InstancePresetSpecMaintenanceAutoApproveUpTo.
+const (
+	InstancePresetSpecMaintenanceAutoApproveUpToDowntime       InstancePresetSpecMaintenanceAutoApproveUpTo = "Downtime"
+	InstancePresetSpecMaintenanceAutoApproveUpToNonDisruptive  InstancePresetSpecMaintenanceAutoApproveUpTo = "NonDisruptive"
+	InstancePresetSpecMaintenanceAutoApproveUpToRollingRestart InstancePresetSpecMaintenanceAutoApproveUpTo = "RollingRestart"
+)
+
+// Valid indicates whether the value is a known member of the InstancePresetSpecMaintenanceAutoApproveUpTo enum.
+func (e InstancePresetSpecMaintenanceAutoApproveUpTo) Valid() bool {
+	switch e {
+	case InstancePresetSpecMaintenanceAutoApproveUpToDowntime:
+		return true
+	case InstancePresetSpecMaintenanceAutoApproveUpToNonDisruptive:
+		return true
+	case InstancePresetSpecMaintenanceAutoApproveUpToRollingRestart:
 		return true
 	default:
 		return false
@@ -819,22 +882,22 @@ type BackupClass struct {
 				// ClusterPermissions ClusterPermissions are cluster-scoped PolicyRules granted via a
 				// generated ClusterRole and ClusterRoleBinding.
 				ClusterPermissions *[]struct {
-					// ApiGroups APIGroups is the name of the APIGroup that contains the resources.  If multiple API groups are specified, any action requested against one of
+					// ApiGroups apiGroups is the name of the APIGroup that contains the resources.  If multiple API groups are specified, any action requested against one of
 					// the enumerated resources in any API group will be allowed. "" represents the core API group and "*" represents all API groups.
 					ApiGroups *[]string `json:"apiGroups,omitempty"`
 
-					// NonResourceURLs NonResourceURLs is a set of partial urls that a user should have access to.  *s are allowed, but only as the full, final step in the path
+					// NonResourceURLs nonResourceURLs is a set of partial urls that a user should have access to.  *s are allowed, but only as the full, final step in the path
 					// Since non-resource URLs are not namespaced, this field is only applicable for ClusterRoles referenced from a ClusterRoleBinding.
 					// Rules can either apply to API resources (such as "pods" or "secrets") or non-resource URL paths (such as "/api"),  but not both.
 					NonResourceURLs *[]string `json:"nonResourceURLs,omitempty"`
 
-					// ResourceNames ResourceNames is an optional white list of names that the rule applies to.  An empty set means that everything is allowed.
+					// ResourceNames resourceNames is an optional white list of names that the rule applies to.  An empty set means that everything is allowed.
 					ResourceNames *[]string `json:"resourceNames,omitempty"`
 
-					// Resources Resources is a list of resources this rule applies to. '*' represents all resources.
+					// Resources resources is a list of resources this rule applies to. '*' represents all resources.
 					Resources *[]string `json:"resources,omitempty"`
 
-					// Verbs Verbs is a list of Verbs that apply to ALL the ResourceKinds contained in this rule. '*' represents all verbs.
+					// Verbs verbs is a list of Verbs that apply to ALL the ResourceKinds contained in this rule. '*' represents all verbs.
 					Verbs []string `json:"verbs"`
 				} `json:"clusterPermissions,omitempty"`
 
@@ -850,22 +913,22 @@ type BackupClass struct {
 				// Permissions Permissions are namespace-scoped PolicyRules granted to the job pod via
 				// a generated Role and RoleBinding.
 				Permissions *[]struct {
-					// ApiGroups APIGroups is the name of the APIGroup that contains the resources.  If multiple API groups are specified, any action requested against one of
+					// ApiGroups apiGroups is the name of the APIGroup that contains the resources.  If multiple API groups are specified, any action requested against one of
 					// the enumerated resources in any API group will be allowed. "" represents the core API group and "*" represents all API groups.
 					ApiGroups *[]string `json:"apiGroups,omitempty"`
 
-					// NonResourceURLs NonResourceURLs is a set of partial urls that a user should have access to.  *s are allowed, but only as the full, final step in the path
+					// NonResourceURLs nonResourceURLs is a set of partial urls that a user should have access to.  *s are allowed, but only as the full, final step in the path
 					// Since non-resource URLs are not namespaced, this field is only applicable for ClusterRoles referenced from a ClusterRoleBinding.
 					// Rules can either apply to API resources (such as "pods" or "secrets") or non-resource URL paths (such as "/api"),  but not both.
 					NonResourceURLs *[]string `json:"nonResourceURLs,omitempty"`
 
-					// ResourceNames ResourceNames is an optional white list of names that the rule applies to.  An empty set means that everything is allowed.
+					// ResourceNames resourceNames is an optional white list of names that the rule applies to.  An empty set means that everything is allowed.
 					ResourceNames *[]string `json:"resourceNames,omitempty"`
 
-					// Resources Resources is a list of resources this rule applies to. '*' represents all resources.
+					// Resources resources is a list of resources this rule applies to. '*' represents all resources.
 					Resources *[]string `json:"resources,omitempty"`
 
-					// Verbs Verbs is a list of Verbs that apply to ALL the ResourceKinds contained in this rule. '*' represents all verbs.
+					// Verbs verbs is a list of Verbs that apply to ALL the ResourceKinds contained in this rule. '*' represents all verbs.
 					Verbs []string `json:"verbs"`
 				} `json:"permissions,omitempty"`
 			} `json:"backup"`
@@ -886,22 +949,22 @@ type BackupClass struct {
 				// ClusterPermissions ClusterPermissions are cluster-scoped PolicyRules granted via a
 				// generated ClusterRole and ClusterRoleBinding.
 				ClusterPermissions *[]struct {
-					// ApiGroups APIGroups is the name of the APIGroup that contains the resources.  If multiple API groups are specified, any action requested against one of
+					// ApiGroups apiGroups is the name of the APIGroup that contains the resources.  If multiple API groups are specified, any action requested against one of
 					// the enumerated resources in any API group will be allowed. "" represents the core API group and "*" represents all API groups.
 					ApiGroups *[]string `json:"apiGroups,omitempty"`
 
-					// NonResourceURLs NonResourceURLs is a set of partial urls that a user should have access to.  *s are allowed, but only as the full, final step in the path
+					// NonResourceURLs nonResourceURLs is a set of partial urls that a user should have access to.  *s are allowed, but only as the full, final step in the path
 					// Since non-resource URLs are not namespaced, this field is only applicable for ClusterRoles referenced from a ClusterRoleBinding.
 					// Rules can either apply to API resources (such as "pods" or "secrets") or non-resource URL paths (such as "/api"),  but not both.
 					NonResourceURLs *[]string `json:"nonResourceURLs,omitempty"`
 
-					// ResourceNames ResourceNames is an optional white list of names that the rule applies to.  An empty set means that everything is allowed.
+					// ResourceNames resourceNames is an optional white list of names that the rule applies to.  An empty set means that everything is allowed.
 					ResourceNames *[]string `json:"resourceNames,omitempty"`
 
-					// Resources Resources is a list of resources this rule applies to. '*' represents all resources.
+					// Resources resources is a list of resources this rule applies to. '*' represents all resources.
 					Resources *[]string `json:"resources,omitempty"`
 
-					// Verbs Verbs is a list of Verbs that apply to ALL the ResourceKinds contained in this rule. '*' represents all verbs.
+					// Verbs verbs is a list of Verbs that apply to ALL the ResourceKinds contained in this rule. '*' represents all verbs.
 					Verbs []string `json:"verbs"`
 				} `json:"clusterPermissions,omitempty"`
 
@@ -917,22 +980,22 @@ type BackupClass struct {
 				// Permissions Permissions are namespace-scoped PolicyRules granted to the job pod via
 				// a generated Role and RoleBinding.
 				Permissions *[]struct {
-					// ApiGroups APIGroups is the name of the APIGroup that contains the resources.  If multiple API groups are specified, any action requested against one of
+					// ApiGroups apiGroups is the name of the APIGroup that contains the resources.  If multiple API groups are specified, any action requested against one of
 					// the enumerated resources in any API group will be allowed. "" represents the core API group and "*" represents all API groups.
 					ApiGroups *[]string `json:"apiGroups,omitempty"`
 
-					// NonResourceURLs NonResourceURLs is a set of partial urls that a user should have access to.  *s are allowed, but only as the full, final step in the path
+					// NonResourceURLs nonResourceURLs is a set of partial urls that a user should have access to.  *s are allowed, but only as the full, final step in the path
 					// Since non-resource URLs are not namespaced, this field is only applicable for ClusterRoles referenced from a ClusterRoleBinding.
 					// Rules can either apply to API resources (such as "pods" or "secrets") or non-resource URL paths (such as "/api"),  but not both.
 					NonResourceURLs *[]string `json:"nonResourceURLs,omitempty"`
 
-					// ResourceNames ResourceNames is an optional white list of names that the rule applies to.  An empty set means that everything is allowed.
+					// ResourceNames resourceNames is an optional white list of names that the rule applies to.  An empty set means that everything is allowed.
 					ResourceNames *[]string `json:"resourceNames,omitempty"`
 
-					// Resources Resources is a list of resources this rule applies to. '*' represents all resources.
+					// Resources resources is a list of resources this rule applies to. '*' represents all resources.
 					Resources *[]string `json:"resources,omitempty"`
 
-					// Verbs Verbs is a list of Verbs that apply to ALL the ResourceKinds contained in this rule. '*' represents all verbs.
+					// Verbs verbs is a list of Verbs that apply to ALL the ResourceKinds contained in this rule. '*' represents all verbs.
 					Verbs []string `json:"verbs"`
 				} `json:"permissions,omitempty"`
 			} `json:"restore,omitempty"`
@@ -2274,6 +2337,26 @@ type Instance struct {
 		// itself.
 		DeletionPolicy *InstanceSpecDeletionPolicy `json:"deletionPolicy,omitempty"`
 
+		// Maintenance Maintenance governs how disruptive actions raised against this
+		// Instance (e.g. the convergence step after a provider upgrade) are
+		// authorized. It does NOT govern the deliberate engine-version upgrade
+		// flow (spec.version / spec.components[].version).
+		Maintenance *struct {
+			// Approved Approved is a one-time authorization for an action above the standing
+			// tolerance: set it to the exact approvalToken of the held action from
+			// status.pendingMaintenance. It is matched literally, authorizes only
+			// that occurrence, and re-arms naturally — a later action carries a
+			// different token, so a stale value never authorizes it. It is NOT a
+			// provider version.
+			Approved *string `json:"approved,omitempty"`
+
+			// AutoApproveUpTo AutoApproveUpTo is the standing disruption tolerance: any action at or
+			// below this impact applies automatically, anything above it is held on
+			// status.pendingMaintenance. It is cause-agnostic — the tolerance applies
+			// whether the action was raised by a provider upgrade or anything else.
+			AutoApproveUpTo *InstanceSpecMaintenanceAutoApproveUpTo `json:"autoApproveUpTo,omitempty"`
+		} `json:"maintenance,omitempty"`
+
 		// Parameters Parameters contains structured parameters that apply to the Instance
 		// as a whole, complementing the topology- and component-scoped
 		// parameters. The payload is validated against the referenced Provider's
@@ -2402,6 +2485,24 @@ type Instance struct {
 		// Message Message is a custom user-facing message describing the current state of the instance.
 		Message *string `json:"message,omitempty"`
 
+		// PendingMaintenance PendingMaintenance lists the disruptive actions currently held awaiting
+		// approval. It is recomputed on every reconcile from the actions the
+		// provider currently requests above the Instance's tolerance, so it can
+		// never go stale: an action the provider stops requesting disappears.
+		PendingMaintenance *[]struct {
+			// ApprovalToken ApprovalToken is the occurrence-unique, human-readable token the
+			// provider assigned to this held action. Copy it verbatim into
+			// spec.maintenance.approved to authorize this specific action.
+			ApprovalToken *string `json:"approvalToken,omitempty"`
+
+			// Description Description is a human-readable summary of the action and its
+			// observable impact. It never exposes operator internals.
+			Description string `json:"description"`
+
+			// Severity Severity is the action's observable database impact.
+			Severity InstanceStatusPendingMaintenanceSeverity `json:"severity"`
+		} `json:"pendingMaintenance,omitempty"`
+
 		// Phase Phase of the database cluster.
 		Phase *InstanceStatusPhase `json:"phase,omitempty"`
 
@@ -2481,11 +2582,20 @@ type InstanceSpecDataSourceType string
 // itself.
 type InstanceSpecDeletionPolicy string
 
+// InstanceSpecMaintenanceAutoApproveUpTo AutoApproveUpTo is the standing disruption tolerance: any action at or
+// below this impact applies automatically, anything above it is held on
+// status.pendingMaintenance. It is cause-agnostic — the tolerance applies
+// whether the action was raised by a provider upgrade or anything else.
+type InstanceSpecMaintenanceAutoApproveUpTo string
+
 // InstanceStatusBackupStoragesPitrState State summarises whether a trustworthy window exists.
 type InstanceStatusBackupStoragesPitrState string
 
 // InstanceStatusConditionsStatus status of the condition, one of True, False, Unknown.
 type InstanceStatusConditionsStatus string
+
+// InstanceStatusPendingMaintenanceSeverity Severity is the action's observable database impact.
+type InstanceStatusPendingMaintenanceSeverity string
 
 // InstanceStatusPhase Phase of the database cluster.
 type InstanceStatusPhase string
@@ -3483,6 +3593,26 @@ type InstancePreset struct {
 		// itself.
 		DeletionPolicy *InstancePresetSpecDeletionPolicy `json:"deletionPolicy,omitempty"`
 
+		// Maintenance Maintenance governs how disruptive actions raised against this
+		// Instance (e.g. the convergence step after a provider upgrade) are
+		// authorized. It does NOT govern the deliberate engine-version upgrade
+		// flow (spec.version / spec.components[].version).
+		Maintenance *struct {
+			// Approved Approved is a one-time authorization for an action above the standing
+			// tolerance: set it to the exact approvalToken of the held action from
+			// status.pendingMaintenance. It is matched literally, authorizes only
+			// that occurrence, and re-arms naturally — a later action carries a
+			// different token, so a stale value never authorizes it. It is NOT a
+			// provider version.
+			Approved *string `json:"approved,omitempty"`
+
+			// AutoApproveUpTo AutoApproveUpTo is the standing disruption tolerance: any action at or
+			// below this impact applies automatically, anything above it is held on
+			// status.pendingMaintenance. It is cause-agnostic — the tolerance applies
+			// whether the action was raised by a provider upgrade or anything else.
+			AutoApproveUpTo *InstancePresetSpecMaintenanceAutoApproveUpTo `json:"autoApproveUpTo,omitempty"`
+		} `json:"maintenance,omitempty"`
+
 		// Parameters Parameters contains structured parameters that apply to the Instance
 		// as a whole, complementing the topology- and component-scoped
 		// parameters. The payload is validated against the referenced Provider's
@@ -3610,6 +3740,12 @@ type InstancePresetSpecDataSourceType string
 // has been set is rejected so the cascade path cannot race with
 // itself.
 type InstancePresetSpecDeletionPolicy string
+
+// InstancePresetSpecMaintenanceAutoApproveUpTo AutoApproveUpTo is the standing disruption tolerance: any action at or
+// below this impact applies automatically, anything above it is held on
+// status.pendingMaintenance. It is cause-agnostic — the tolerance applies
+// whether the action was raised by a provider upgrade or anything else.
+type InstancePresetSpecMaintenanceAutoApproveUpTo string
 
 // InstancePresetStatusConditionsStatus status of the condition, one of True, False, Unknown.
 type InstancePresetStatusConditionsStatus string

@@ -50,6 +50,25 @@ type Context struct {
 	// flush the corresponding condition onto the Instance after Sync. It is
 	// nil when the provider has not invoked the helper this reconcile pass.
 	dataSourceStatus *DataSourceStatus
+
+	// pendingMaintenance collects the actions RequestMaintenance held this
+	// reconcile pass; the reconciler flushes them to
+	// status.pendingMaintenance after Sync.
+	pendingMaintenance []v1alpha1.PendingMaintenanceAction
+
+	// approvedMaintenance collects the tokens of disruptive actions
+	// RequestMaintenance approved this pass, so the reconciler can count
+	// Sync failures against them.
+	approvedMaintenance []string
+
+	// blockedMaintenance holds tokens whose retries are exhausted; the
+	// reconciler sets it before Sync and RequestMaintenance holds them
+	// despite approval.
+	blockedMaintenance map[string]struct{}
+
+	// maintenanceBreakerHeld reports that at least one action was held this
+	// pass because its retries were exhausted.
+	maintenanceBreakerHeld bool
 }
 
 // NewContext creates a new Context handle (used internally by the reconciler).
