@@ -29,6 +29,7 @@ import (
 	"path"
 	"regexp"
 	"slices"
+	"strings"
 	"text/template"
 	"time"
 
@@ -628,6 +629,7 @@ func everestErrorHandler(next echo.HTTPErrorHandler) echo.HTTPErrorHandler {
 // v2's "*.monitoring.openeverest.io" / "*.kb.io" webhooks), so it does not
 // need to be updated every time a webhook is renamed or added.
 var admissionWebhookPrefixRe = regexp.MustCompile(`^admission webhook "[^"]*" denied the request:\s*`)
+
 // trimStrictDecodingError drops the API server's dump of the whole submitted
 // object, managedFields included, which buries the fields it is rejecting.
 func trimStrictDecodingError(fullText string) string {
